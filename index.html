@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relógio Minimalista Adaptativo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --box-bg: #000000;
+            --box-text: #ffffff;
+            /* Transição suave de 2 segundos para mudança de tema */
+            transition: background-color 2s ease-in-out, color 2s ease-in-out;
+        }
+
+        .dark-mode {
+            --bg-color: #000000;
+            --text-color: #ffffff;
+            --box-bg: #ffffff;
+            --box-text: #000000;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Container Principal */
+        .main-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 95vw;
+            height: 90vh;
+            gap: 1vh;
+        }
+
+        /* Container dos Relógios: Linha Única Permanente */
+        .clocks-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            flex: 1;
+            gap: 3vw;
+        }
+
+        /* Relógio Analógico: Reduzido para dar destaque ao digital */
+        .analog-clock {
+            width: min(40vw, 50vh);
+            height: min(40vw, 50vh);
+            border: 4px solid var(--text-color);
+            border-radius: 50%;
+            position: relative;
+            flex-shrink: 0;
+            /* Suaviza a transição da borda também */
+            transition: border-color 2s ease-in-out;
+        }
+
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom;
+            border-radius: 4px;
+            transition: background-color 2s ease-in-out;
+        }
+
+        /* Hierarquia de camadas (Z-index): Segundos sempre à frente */
+        .hour-hand { width: 7px; height: 25%; margin-left: -3.5px; z-index: 30; background-color: var(--text-color); }
+        .min-hand { width: 5px; height: 38%; margin-left: -2.5px; z-index: 20; background-color: var(--text-color); }
+        .sec-hand { 
+            width: 2px; 
+            height: 45%; 
+            margin-left: -1px; 
+            z-index: 10; /* No topo de todos */
+            background-color: #ff3b30; 
+        }
+
+        .center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            background-color: var(--text-color);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 40;
+            transition: background-color 2s ease-in-out;
+        }
+
+        /* Relógio Digital: Destaque Absoluto */
+        .digital-clock {
+            font-size: clamp(6rem, 24vw, 32rem);
+            font-weight: 600;
+            line-height: 0.9;
+            letter-spacing: -0.06em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+        }
+
+        /* Separador ":" centralizado verticalmente */
+        .separator {
+            animation: blinker 1s step-start infinite;
+            display: inline-block;
+            /* Ajuste fino de translação para centralizar no meio da altura da fonte Outfit */
+            transform: translateY(-0.08em);
+            padding: 0 0.01em;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+        /* Data: Linha única constante */
+        .date-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5vw;
+            font-size: clamp(1.2rem, 3.8vw, 4.5rem);
+            font-weight: 600;
+            white-space: nowrap;
+            margin-bottom: 2vh;
+        }
+
+        .day-box {
+            background-color: var(--box-bg);
+            color: var(--box-text);
+            padding: 0.15em 0.5em;
+            border-radius: 6px;
+            text-transform: uppercase;
+            transition: background-color 2s ease-in-out, color 2s ease-in-out;
+        }
+    </style>
+</head>
+<body onclick="toggleFullScreen()">
+
+    <div class="main-wrapper">
+        <!-- Relógios: Layout Horizontal Fixo -->
+        <div class="clocks-container">
+            <!-- Analógico (Complementar) -->
+            <div class="analog-clock">
+                <div class="hand hour-hand" id="hour-hand"></div>
+                <div class="hand min-hand" id="min-hand"></div>
+                <div class="hand sec-hand" id="sec-hand"></div>
+                <div class="center-dot"></div>
+            </div>
+
+            <!-- Digital (Protagonista) -->
+            <div class="digital-clock">
+                <span id="hours">00</span><span class="separator">:</span><span id="minutes">00</span>
+            </div>
+        </div>
+
+        <!-- Data -->
+        <div class="date-row">
+            <div class="day-box" id="day-of-week">---</div>
+            <div id="full-date">--- de --- de ----</div>
+        </div>
+    </div>
+
+    <script>
+        function update() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const s = now.getSeconds();
+
+            // 1. Lógica do Tema Adaptativo (06:00 às 18:00)
+            // A transição suave é controlada pelo CSS (transition: 2s)
+            if (h >= 6 && h < 18) {
+                document.body.classList.remove('dark-mode');
+            } else {
+                document.body.classList.add('dark-mode');
+            }
+
+            // 2. Relógio Analógico
+            const sDeg = (s / 60) * 360;
+            const mDeg = ((m / 60) * 360) + ((s / 60) * 6);
+            const hDeg = ((h % 12 / 12) * 360) + ((m / 60) * 30);
+
+            document.getElementById('sec-hand').style.transform = `rotate(${sDeg}deg)`;
+            document.getElementById('min-hand').style.transform = `rotate(${mDeg}deg)`;
+            document.getElementById('hour-hand').style.transform = `rotate(${hDeg}deg)`;
+
+            // 3. Relógio Digital
+            document.getElementById('hours').innerText = String(h).padStart(2, '0');
+            document.getElementById('minutes').innerText = String(m).padStart(2, '0');
+
+            // 4. Data
+            const weekDays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+            const months = [
+                'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+                'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+            ];
+
+            document.getElementById('day-of-week').innerText = weekDays[now.getDay()];
+            const d = String(now.getDate()).padStart(2, '0');
+            const monthName = months[now.getMonth()];
+            const year = now.getFullYear();
+            
+            document.getElementById('full-date').innerText = `${d} de ${monthName} de ${year}`;
+        }
+
+        // Função para tela cheia
+        function toggleFullScreen() {
+            try {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            } catch (err) {}
+        }
+
+        // Atualização a cada segundo
+        setInterval(update, 1000);
+        update();
+    </script>
+</body>
+</html>
