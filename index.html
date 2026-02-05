@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relógio Minimalista Adaptativo</title>
+    <title>Relógio Minimalista com Feriados</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #ffffff;
             --text-color: #000000;
             --box-bg: #000000;
             --box-text: #ffffff;
-            /* Transição suave de 2 segundos para mudança de tema */
+            --accent-color: #ff3b30;
             transition: background-color 2s ease-in-out, color 2s ease-in-out;
         }
 
@@ -50,7 +50,7 @@
             gap: 1vh;
         }
 
-        /* Container dos Relógios: Linha Única Permanente */
+        /* Container dos Relógios */
         .clocks-container {
             display: flex;
             flex-direction: row;
@@ -62,7 +62,7 @@
             gap: 3vw;
         }
 
-        /* Relógio Analógico: Reduzido para dar destaque ao digital */
+        /* Relógio Analógico */
         .analog-clock {
             width: min(40vw, 50vh);
             height: min(40vw, 50vh);
@@ -70,7 +70,6 @@
             border-radius: 50%;
             position: relative;
             flex-shrink: 0;
-            /* Suaviza a transição da borda também */
             transition: border-color 2s ease-in-out;
         }
 
@@ -83,15 +82,14 @@
             transition: background-color 2s ease-in-out;
         }
 
-        /* Hierarquia de camadas (Z-index): Segundos sempre atrás */
         .hour-hand { width: 7px; height: 25%; margin-left: -3.5px; z-index: 30; background-color: var(--text-color); }
         .min-hand { width: 5px; height: 38%; margin-left: -2.5px; z-index: 20; background-color: var(--text-color); }
         .sec-hand { 
             width: 2px; 
             height: 45%; 
             margin-left: -1px; 
-            z-index: 10; /* Atrás de todos */
-            background-color: #ff3b30; 
+            z-index: 10; 
+            background-color: var(--accent-color); 
         }
 
         .center-dot {
@@ -107,7 +105,7 @@
             transition: background-color 2s ease-in-out;
         }
 
-        /* Relógio Digital: Destaque Absoluto */
+        /* Relógio Digital */
         .digital-clock {
             font-size: clamp(6rem, 24vw, 32rem);
             font-weight: 600;
@@ -119,11 +117,9 @@
             flex-grow: 1;
         }
 
-        /* Separador ":" centralizado verticalmente */
         .separator {
             animation: blinker 1s step-start infinite;
             display: inline-block;
-            /* Ajuste fino de translação para centralizar no meio da altura da fonte Outfit */
             transform: translateY(-0.1em);
             padding: 0 0.01em;
         }
@@ -132,7 +128,7 @@
             50% { opacity: 0; }
         }
 
-        /* Data: Linha única constante */
+        /* Data */
         .date-row {
             width: 100%;
             display: flex;
@@ -142,7 +138,6 @@
             font-size: clamp(1.2rem, 3.8vw, 4.5rem);
             font-weight: 600;
             white-space: nowrap;
-            margin-bottom: 2vh;
         }
 
         .day-box {
@@ -153,14 +148,35 @@
             text-transform: uppercase;
             transition: background-color 2s ease-in-out, color 2s ease-in-out;
         }
+
+        /* Estilo da Linha de Feriado */
+        .holiday-row {
+            min-height: 1.5em; /* Reserva espaço para evitar pulos layout */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1vh;
+            margin-bottom: 2vh;
+            width: 100%;
+        }
+
+        .holiday-text {
+            font-size: clamp(1rem, 2.5vw, 2.5rem);
+            font-weight: 300; /* Mais leve que a data para hierarquia visual */
+            color: var(--text-color);
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            text-align: center;
+            transition: color 2s ease-in-out;
+        }
     </style>
 </head>
-<body onclick="toggleFullScreen()">
+<body>
 
     <div class="main-wrapper">
-        <!-- Relógios: Layout Horizontal Fixo -->
+        <!-- Relógios -->
         <div class="clocks-container">
-            <!-- Analógico (Complementar) -->
             <div class="analog-clock">
                 <div class="hand hour-hand" id="hour-hand"></div>
                 <div class="hand min-hand" id="min-hand"></div>
@@ -168,7 +184,6 @@
                 <div class="center-dot"></div>
             </div>
 
-            <!-- Digital (Protagonista) -->
             <div class="digital-clock">
                 <span id="hours">00</span><span class="separator">:</span><span id="minutes">00</span>
             </div>
@@ -179,17 +194,97 @@
             <div class="day-box" id="day-of-week">---</div>
             <div id="full-date">--- de --- de ----</div>
         </div>
+
+        <!-- Feriado (Dinamico) -->
+        <div class="holiday-row">
+            <div id="holiday-text" class="holiday-text"></div>
+        </div>
     </div>
 
     <script>
+        // Função auxiliar para formatar data DD-MM
+        function formatDateKey(date) {
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            return `${d}-${m}`;
+        }
+
+        // Função para calcular a data da Páscoa (Algoritmo de Meeus/Jones/Butcher)
+        function getEasterDate(year) {
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        // Adiciona dias a uma data
+        function addDays(date, days) {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        // Verifica qual feriado é hoje
+        function checkHoliday(today) {
+            const year = today.getFullYear();
+            const dateKey = formatDateKey(today);
+
+            // 1. Feriados Fixos (Nacional, Maranhão, Balsas)
+            const fixedHolidays = {
+                '01-01': 'Confraternização Universal',
+                '22-03': 'Aniversário de Balsas',
+                '21-04': 'Tiradentes',
+                '01-05': 'Dia do Trabalhador',
+                '12-06': 'Dia do Vaqueiro (Balsas)',
+                '13-06': 'Dia de Santo Antônio (Padroeiro)',
+                '28-07': 'Adesão do Maranhão à Independência',
+                '07-09': 'Independência do Brasil',
+                '12-10': 'Nossa Sr.ª Aparecida',
+                '02-11': 'Finados',
+                '15-11': 'Proclamação da República',
+                '20-11': 'Dia da Consciência Negra',
+                '25-12': 'Natal'
+            };
+
+            if (fixedHolidays[dateKey]) {
+                return fixedHolidays[dateKey];
+            }
+
+            // 2. Feriados Móveis (Baseados na Páscoa)
+            const easter = getEasterDate(year);
+            const carnaval = addDays(easter, -47); // DEFINIÇÃO DA VARIÁVEL CORRIGIDA
+            const cinzas = addDays(easter, -46);
+            const goodFriday = addDays(easter, -2); // Sexta-feira Santa
+            const corpusChristi = addDays(easter, 60); // Corpus Christi
+
+            // Verificações usando a variável correta
+            if (dateKey === formatDateKey(carnaval)) return 'Carnaval';
+            if (dateKey === formatDateKey(cinzas)) return 'Cinzas (até 12:00)';
+            if (dateKey === formatDateKey(goodFriday)) return 'Sexta-feira Santa';
+            if (dateKey === formatDateKey(corpusChristi)) return 'Corpus Christi';
+            if (dateKey === formatDateKey(easter)) return 'Domingo de Páscoa';
+
+            return ''; // Nenhum feriado
+        }
+
         function update() {
             const now = new Date();
             const h = now.getHours();
             const m = now.getMinutes();
             const s = now.getSeconds();
 
-            // 1. Lógica do Tema Adaptativo (06:00 às 18:00)
-            // A transição suave é controlada pelo CSS (transition: 2s)
+            // 1. Tema Adaptativo (06:00 às 18:00)
             if (h >= 6 && h < 18) {
                 document.body.classList.remove('dark-mode');
             } else {
@@ -222,36 +317,15 @@
             const year = now.getFullYear();
             
             document.getElementById('full-date').innerText = `${d} de ${monthName} de ${year}`;
-        }
 
-        // Função para tela cheia
-        function toggleFullScreen() {
-            try {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    }
-                }
-            } catch (err) {}
+            // 5. Feriados
+            const holidayName = checkHoliday(now);
+            document.getElementById('holiday-text').innerText = holidayName;
         }
 
         // Atualização a cada segundo
         setInterval(update, 1000);
         update();
-
-        // Tenta acionar a tela cheia automaticamente ao carregar
-        window.addEventListener('load', () => {
-            // Pequeno atraso para garantir que o ambiente de execução esteja pronto
-            setTimeout(() => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {
-                        console.log("A ativação automática de tela cheia pode ser bloqueada pelo navegador até que haja uma interação.");
-                    });
-                }
-            }, 1000);
-        });
     </script>
 </body>
 </html>
